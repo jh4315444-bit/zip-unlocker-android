@@ -1,11 +1,25 @@
-<div align="center">
+# Zip Unlocker (জিপ আনলকার ও আর্কাইভ ভল্ট)
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+বাংলা ও ইংরেজি ইন্টারফেস সমৃদ্ধ একটি আধুনিক অ্যান্ড্রয়েড জিপ আনলকার, পাসওয়ার্ড রিকভারি, এক্সট্রাক্টর এবং এনক্রিপ্টেড জিপ ক্রিয়েটর অ্যাপ।
 
-  <h1>Built with AI Studio</h2>
+## মূল ফিচারসমূহ (Key Features)
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- **জিপ আনলকার ও ইন্সপেক্টর (Unlocker & Inspector):**
+  - যেকোনো `.zip` আর্কাইভ ফাইলের ভেতরের ফাইল তালিকা, CRC-32, কমপ্রেশন রেশিও এবং এনক্রিপশন স্ট্যান্ডার্ড (`AES-256`, `AES-128`, `ZipCrypto`) পরিদর্শন।
+  - পাসওয়ার্ড দিয়ে লক করা জিপ ফাইল ডিক্রিপ্ট ও আনজিপ করার সুবিধা।
+  - তাৎক্ষণিক টেস্ট করার জন্য ৩টি বিল্ট-ইন ডেমো আর্কাইভ জেনারেটর।
+- **স্মার্ট পাসওয়ার্ড রিকভারি ইঞ্জিন (Smart Password Recovery):**
+  - **সাধারণ পাসওয়ার্ড ডিকশনারি:** সর্বাধিক ব্যবহৃত পাসওয়ার্ড ও পিন স্ক্যান।
+  - **৪-ডিজিট পিন স্ক্যানার:** `0000` থেকে `9999` এবং সকল সাল দ্রুত পরীক্ষা করার সুবিধা।
+  - **স্মার্ট হিন্ট কম্বিনেশন:** ব্যবহারকারীর দেওয়া সম্ভাব্য নাম বা শব্দের সাথে সংখ্যা ও প্রতীক (`@`, `#`, `!`, `123`, `2026` ইত্যাদি) মিলিয়ে স্বয়ংক্রিয়ভাবে শত শত পাসওয়ার্ড কম্বিনেশন পরীক্ষা।
+- **এনক্রিপ্টেড জিপ ক্রিয়েটর (Encrypted ZIP Creator):**
+  - ফোনের যেকোনো ফাইল বা গোপন টেক্সট নোট যুক্ত করে `AES-256` মিলিটারি গ্রেড অথবা `ZipCrypto` পাসওয়ার্ড দিয়ে নতুন `.zip` ফাইল তৈরি।
+- **আনলকড ফাইল ভল্ট (Unlocked File Vault):**
+  - আনজিপ করা ফাইলগুলো অ্যাপের ভেতরেই পড়ার (Text/CSV/JSON/Code Viewer) এবং অন্য অ্যাপে শেয়ার করার সুবিধা।
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## টেক স্ট্যাক (Tech Stack)
 
-</div>
+- **UI:** Jetpack Compose (Material Design 3, Adaptive Navigation Bar & Rail)
+- **Architecture:** MVVM (`ViewModel` + `StateFlow`)
+- **ZIP & Cryptography Engine:** `net.lingala.zip4j:zip4j`
+- **Minimum SDK:** Android 7.0 (API 24)

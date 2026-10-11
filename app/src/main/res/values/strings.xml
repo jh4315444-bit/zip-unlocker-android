@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Zip Unlocker</string>
+    <string name="app_subtitle">জিপ আনলকার ও আর্কাইভ ভল্ট</string>
+    <string name="tab_unlocker">আনলকার</string>
+    <string name="tab_recovery">পাসওয়ার্ড রিকভারি</string>
+    <string name="tab_creator">জিপ তৈরি</string>
+    <string name="tab_vault">ভল্ট ফাইল</string>
+    <string name="pick_zip_file">জিপ ফাইল নির্বাচন করুন</string>
+    <string name="load_demo_encrypted">ডেমো লকড জিপ টেস্ট করুন</string>
+    <string name="enter_password">জিপ পাসওয়ার্ড লিখুন</string>
+    <string name="unlock_and_extract">আনলক ও এক্সট্রাক্ট করুন</string>
+    <string name="start_dictionary_scan">স্মার্ট পাসওয়ার্ড রিকভারি শুরু করুন</string>
+    <string name="create_encrypted_zip">নতুন পাসওয়ার্ড লকড জিপ তৈরি করুন</string>
+</resources>

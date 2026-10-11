@@ -1,0 +1,6 @@
+{
+  "name": "Zip Unlocker",
+  "description": "বাংলা ও ইংরেজি ভাষায় সম্পূর্ণ জিপ আনলকার, পাসওয়ার্ড ভল্ট রিকভারি, এক্সট্রাক্টর এবং জিপ ফাইল ক্রিয়েটর অ্যাপ।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
