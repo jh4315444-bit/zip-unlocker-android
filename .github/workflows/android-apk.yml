@@ -34,12 +34,18 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
+      - name: Accept Android SDK Licenses & Install SDK Components
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "build-tools;36.0.0" "platforms;android-36" "platforms;android-36.1" || true
 
-      - name: Generate Debug Keystore (if not present)
+      - name: Install Gradle 9.3.1
+        run: |
+          curl -sL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o /tmp/gradle-9.3.1-bin.zip
+          unzip -q /tmp/gradle-9.3.1-bin.zip -d /opt/
+          echo "/opt/gradle-9.3.1/bin" >> $GITHUB_PATH
+
+      - name: Prepare Keystores & .env File
         run: |
           if [ ! -f "debug.keystore" ]; then
             keytool -genkeypair -v \
@@ -52,12 +58,24 @@ jobs:
               -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
           fi
-
-      - name: Run Unit & Robolectric Tests
-        run: gradle :app:testDebugUnitTest --no-daemon
+          if [ ! -f "my-upload-key.jks" ]; then
+            cp debug.keystore my-upload-key.jks
+          fi
+          if [ ! -f ".env" ]; then
+            cp .env.example .env
+          fi
 
       - name: Build Installable Debug APK
-        run: gradle :app:assembleDebug --no-daemon
+        env:
+          STORE_PASSWORD: android
+          KEY_PASSWORD: android
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Run Unit & Robolectric Tests
+        env:
+          STORE_PASSWORD: android
+          KEY_PASSWORD: android
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
 
       - name: Prepare Branded APK Artifact
         run: |
@@ -73,7 +91,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Create GitHub Release (on Tag Push or Manual Dispatch)
+      - name: Create GitHub Release (on Tag Push)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:

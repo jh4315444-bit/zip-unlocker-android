@@ -1,6 +1,6 @@
 # 🔓 Zip Unlocker (`zip-unlocker-android`)
 
-[![Build Android APK & Release](https://github.com/YOUR_GITHUB_USERNAME/zip-unlocker-android/actions/workflows/android-apk.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/zip-unlocker-android/actions/workflows/android-apk.yml)
+[![Build Android APK & Release](https://github.com/jh4315444-bit/zip-unlocker-android/actions/workflows/android-apk.yml/badge.svg)](https://github.com/jh4315444-bit/zip-unlocker-android/actions/workflows/android-apk.yml)
 ![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-3DDC84?logo=android)
 ![Language](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin)
 ![UI](https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-4285F4?logo=jetpackcompose)
@@ -91,7 +91,7 @@ You can download and install the compiled Android APK directly in two ways:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/YOUR_GITHUB_USERNAME/zip-unlocker-android.git
+   git clone https://github.com/jh4315444-bit/zip-unlocker-android.git
    cd zip-unlocker-android
    ```
 
