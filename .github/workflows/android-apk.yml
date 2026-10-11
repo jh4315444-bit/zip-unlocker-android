@@ -31,21 +31,28 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android SDK Licenses & Install SDK Components
+      - name: Setup Android SDK & Accept All Licenses
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "build-tools;36.0.0" "platforms;android-36" "platforms;android-36.1" || true
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          mkdir -p "$ANDROID_HOME/licenses"
+          printf "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
+          printf "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          SDKMANAGER=$(find "$ANDROID_HOME" -name sdkmanager | head -n 1)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses || true
+            "$SDKMANAGER" "platform-tools" "build-tools;36.0.0" "platforms;android-36" "platforms;android-36.1" || true
+          fi
 
-      - name: Install Gradle 9.3.1
+      - name: Install Gradle 9.3.1 (Non-root /tmp)
         run: |
-          curl -sL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o /tmp/gradle-9.3.1-bin.zip
-          unzip -q /tmp/gradle-9.3.1-bin.zip -d /opt/
-          echo "/opt/gradle-9.3.1/bin" >> $GITHUB_PATH
+          chmod +x gradlew || true
+          curl -sL https://services.gradle.org/distributions/gradle-9.3.1-bin.zip -o "$RUNNER_TEMP/gradle-9.3.1-bin.zip"
+          unzip -q "$RUNNER_TEMP/gradle-9.3.1-bin.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-9.3.1/bin" >> $GITHUB_PATH
 
-      - name: Prepare Keystores & .env File
+      - name: Prepare Signing Keystores & .env File
         run: |
           if [ ! -f "debug.keystore" ]; then
             keytool -genkeypair -v \
@@ -69,13 +76,13 @@ jobs:
         env:
           STORE_PASSWORD: android
           KEY_PASSWORD: android
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Run Unit & Robolectric Tests
         env:
           STORE_PASSWORD: android
           KEY_PASSWORD: android
-        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
 
       - name: Prepare Branded APK Artifact
         run: |
