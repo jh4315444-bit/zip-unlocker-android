@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Radar
@@ -100,7 +101,7 @@ fun RecoveryTabScreen(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "স্মার্ট জিপ পাসওয়ার্ড রিকভারি ইঞ্জিন",
+                                text = "পাসওয়ার্ড টেস্টিং ও রিকভারি সহায়ক",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -117,10 +118,51 @@ fun RecoveryTabScreen(
                     }
 
                     Text(
-                        text = "ভুলে যাওয়া পাসওয়ার্ড উদ্ধারের জন্য ডিকশনারি স্ক্যান, ৪-ডিজিট পিন সুইপ এবং আপনার দেওয়া নামের হিন্ট ভেরিয়েশন স্বয়ংক্রিয়ভাবে পরীক্ষা করে।",
+                        text = "আপনার নিজস্ব ফাইলগুলোর ভুলে যাওয়া পাসওয়ার্ড পরীক্ষার জন্য সাধারণ পিন, ডিকশনারি এবং হিন্ট ভেরিয়েশন স্বয়ংক্রিয়ভাবে টেস্ট করে।",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+        }
+
+        // Technical Scope & Ethical Notice Card
+        item {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                        RoundedCornerShape(16.dp)
+                    )
+                    .testTag("recovery_limitations_notice")
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "প্রযুক্তিগত সীমাবদ্ধতা ও অনুমোদন বিজ্ঞপ্তি (Technical Limitations):",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "AES-256 বা শক্তিশালী র‍্যান্ডম পাসওয়ার্ড গাণিতিকভাবে গ্যারান্টিসহ ভাঙা সম্ভব নয়। এই টুলটি কেবল সাধারণ পিন, পরিচিত শব্দ এবং আপনার দেওয়া হিন্ট বা কাস্টম তালিকার পাসওয়ার্ড পরীক্ষা করে। শুধুমাত্র আপনার নিজের অনুমোদিত ফাইলের জন্য ব্যবহার করুন।",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -260,7 +302,7 @@ fun RecoveryTabScreen(
                         )
 
                         Text(
-                            text = "পরীক্ষিত শব্দ: \"${progress.currentCandidate}\" • সময়: ${progress.elapsedTimeMs} ms",
+                            text = "পরীক্ষিত কম্বিনেশন: ${progress.testedCount} • সময়: ${progress.elapsedTimeMs} ms",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -280,7 +322,7 @@ fun RecoveryTabScreen(
         // Recovery Strategy Selection
         item {
             Text(
-                text = "১. রিকভারি কৌশল নির্বাচন করুন:",
+                text = "১. পাসওয়ার্ড টেস্টিং মোড নির্বাচন করুন:",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -425,7 +467,7 @@ fun RecoveryTabScreen(
                     Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "স্মার্ট পাসওয়ার্ড রিকভারি শুরু করুন",
+                        text = "পাসওয়ার্ড টেস্টিং শুরু করুন",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }

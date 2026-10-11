@@ -26,13 +26,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.UploadFile
@@ -46,6 +49,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -73,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.SampleArchiveType
+import com.example.model.ExtractionProgressState
 import com.example.model.ZipArchiveInfo
 import com.example.model.ZipEntryItem
 import com.example.util.FileFormatUtils
@@ -83,6 +88,8 @@ import com.example.viewmodel.ZipUnlockerUiState
 fun UnlockerTabScreen(
     uiState: ZipUnlockerUiState,
     onPickZipClick: () -> Unit,
+    onPickOutputFolderClick: () -> Unit,
+    onResetOutputFolderClick: () -> Unit,
     onLoadSampleArchive: (SampleArchiveType) -> Unit,
     onPasswordChange: (String) -> Unit,
     onTogglePasswordVisibility: () -> Unit,
@@ -131,9 +138,14 @@ fun UnlockerTabScreen(
                     passwordInput = uiState.passwordInput,
                     isPasswordVisible = uiState.isPasswordVisible,
                     isProcessing = uiState.isProcessing,
+                    extractionProgress = uiState.extractionProgress,
+                    outputFolderLabel = uiState.customOutputFolderLabel,
+                    hasCustomOutputFolder = uiState.customOutputTreeUri != null,
                     selectedCount = uiState.selectedEntries.size,
                     onPasswordChange = onPasswordChange,
                     onTogglePasswordVisibility = onTogglePasswordVisibility,
+                    onPickOutputFolderClick = onPickOutputFolderClick,
+                    onResetOutputFolderClick = onResetOutputFolderClick,
                     onUnlockAndExtract = onUnlockAndExtract,
                     onGoToRecovery = onGoToRecovery
                 )
@@ -268,7 +280,7 @@ private fun HeroVaultCard(
                 )
 
                 Text(
-                    text = "আপনার ফোনের যেকোনো .zip ফাইল খুলুন, ভুলে যাওয়া পাসওয়ার্ড রিকভার করুন অথবা ডেমো লকড ফাইল দিয়ে টেস্ট করুন।",
+                    text = "আপনার ফোনের যেকোনো .zip ফাইল খুলুন, আউটপুট ফোল্ডার নির্বাচন করুন অথবা পাসওয়ার্ড রিকভারি টেস্ট করুন।",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFFCBD5E1)
                 )
@@ -315,7 +327,7 @@ private fun HeroVaultCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "ডেমো জিপ",
+                            text = "টেস্ট জিপ",
                             color = MaterialTheme.colorScheme.secondary,
                             style = MaterialTheme.typography.labelLarge
                         )
@@ -392,9 +404,14 @@ private fun ArchiveStatusOverviewCard(
     passwordInput: String,
     isPasswordVisible: Boolean,
     isProcessing: Boolean,
+    extractionProgress: ExtractionProgressState,
+    outputFolderLabel: String,
+    hasCustomOutputFolder: Boolean,
     selectedCount: Int,
     onPasswordChange: (String) -> Unit,
     onTogglePasswordVisibility: () -> Unit,
+    onPickOutputFolderClick: () -> Unit,
+    onResetOutputFolderClick: () -> Unit,
     onUnlockAndExtract: () -> Unit,
     onGoToRecovery: () -> Unit
 ) {
@@ -487,6 +504,68 @@ private fun ArchiveStatusOverviewCard(
                 )
             }
 
+            // Output Folder Selection Row (SAF OpenDocumentTree)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "আউটপুট ফোল্ডার (Output Folder):",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = outputFolderLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (hasCustomOutputFolder) {
+                        IconButton(
+                            onClick = onResetOutputFolderClick,
+                            modifier = Modifier.testTag("reset_output_folder_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.RestartAlt,
+                                contentDescription = "ডিফল্ট ফোল্ডার রিসেট করুন",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = onPickOutputFolderClick,
+                        modifier = Modifier.testTag("pick_output_folder_button"),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CreateNewFolder,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("ফোল্ডার বদলান", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+
             // Password Input Section when archive is encrypted
             if (archive.isEncrypted) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -521,7 +600,6 @@ private fun ArchiveStatusOverviewCard(
                         shape = RoundedCornerShape(14.dp)
                     )
 
-                    // Quick Hint Chips for Sample Archives or Quick Entry
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -552,6 +630,49 @@ private fun ArchiveStatusOverviewCard(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("পাসওয়ার্ড ভুলে গেছেন?")
                         }
+                    }
+                }
+            }
+
+            // Extraction Progress Indicator
+            AnimatedVisibility(visible = extractionProgress.isExtracting) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("extraction_progress_box")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "এক্সট্রাক্ট হচ্ছে: ${extractionProgress.currentFileName}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "${extractionProgress.percentComplete}% (${extractionProgress.processedEntries}/${extractionProgress.totalEntries})",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { (extractionProgress.percentComplete / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(50)),
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

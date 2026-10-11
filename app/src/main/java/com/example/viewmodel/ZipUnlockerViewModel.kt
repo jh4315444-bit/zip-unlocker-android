@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +9,7 @@ import com.example.data.SampleArchiveType
 import com.example.data.ZipEngineRepository
 import com.example.model.CreatorDraftFile
 import com.example.model.ExtractedVaultBatch
+import com.example.model.ExtractionProgressState
 import com.example.model.RecoveryPresetMode
 import com.example.model.RecoveryScanProgress
 import com.example.model.ZipArchiveInfo
@@ -33,6 +35,9 @@ data class ZipUnlockerUiState(
     val passwordInput: String = "",
     val isPasswordVisible: Boolean = false,
     val isProcessing: Boolean = false,
+    val extractionProgress: ExtractionProgressState = ExtractionProgressState(),
+    val customOutputTreeUri: Uri? = null,
+    val customOutputFolderLabel: String = "ইন্টারনাল ভল্ট (Default App Vault)",
     val statusBannerBn: String? = null,
     val isErrorBanner: Boolean = false,
     val recoveryMode: RecoveryPresetMode = RecoveryPresetMode.COMMON_PASSWORDS,
@@ -60,8 +65,6 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
 
     init {
         refreshVaultBatches()
-        // Pre-populate a ready-to-unlock encrypted sample archive on first launch so the user
-        // immediately sees a rich, functional archive inspector and can test unlocking or pick their own file.
         loadSampleArchive(SampleArchiveType.PIN_LOCKED_VAULT, silent = true)
     }
 
@@ -82,6 +85,34 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
 
     fun togglePasswordVisibility() {
         _uiState.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
+    }
+
+    fun onOutputFolderPicked(treeUri: Uri) {
+        try {
+            val contentResolver = getApplication<Application>().contentResolver
+            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            contentResolver.takePersistableUriPermission(treeUri, takeFlags)
+        } catch (_: Exception) {
+            // Ignore if URI does not support persistable permission
+        }
+        val label = repository.resolveTreeDirectoryLabel(treeUri)
+        _uiState.update {
+            it.copy(
+                customOutputTreeUri = treeUri,
+                customOutputFolderLabel = label,
+                statusBannerBn = "আউটপুট ফোল্ডার নির্বাচিত হয়েছে: $label",
+                isErrorBanner = false
+            )
+        }
+    }
+
+    fun resetOutputFolderToDefault() {
+        _uiState.update {
+            it.copy(
+                customOutputTreeUri = null,
+                customOutputFolderLabel = "ইন্টারনাল ভল্ট (Default App Vault)"
+            )
+        }
     }
 
     fun toggleEntrySelection(fileName: String) {
@@ -181,24 +212,53 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
         val archive = _uiState.value.currentArchive ?: return
         val password = _uiState.value.passwordInput.trim()
         val selected = _uiState.value.selectedEntries
+        val treeUri = _uiState.value.customOutputTreeUri
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isProcessing = true, statusBannerBn = "জিপ আনলক ও ফাইল এক্সট্রাক্ট হচ্ছে...") }
+            _uiState.update {
+                it.copy(
+                    isProcessing = true,
+                    extractionProgress = ExtractionProgressState(
+                        isExtracting = true,
+                        currentFileName = archive.displayName,
+                        processedEntries = 0,
+                        totalEntries = selected.size.coerceAtLeast(1),
+                        percentComplete = 0
+                    ),
+                    statusBannerBn = "জিপ আনলক ও ফাইল এক্সট্রাক্ট হচ্ছে..."
+                )
+            }
             val result = repository.unlockAndExtractAll(
                 archiveFile = archive.file,
                 password = password.ifEmpty { null },
-                selectedEntryNames = selected.ifEmpty { null }
-            )
+                selectedEntryNames = selected.ifEmpty { null },
+                customOutputTreeUri = treeUri
+            ) { processed, total, currentEntry ->
+                val pct = ((processed.toFloat() / total.toFloat()) * 100f).toInt().coerceIn(0, 100)
+                _uiState.update { state ->
+                    state.copy(
+                        extractionProgress = ExtractionProgressState(
+                            isExtracting = true,
+                            currentFileName = currentEntry,
+                            processedEntries = processed,
+                            totalEntries = total,
+                            percentComplete = pct
+                        )
+                    )
+                }
+            }
             result.fold(
                 onSuccess = { batch ->
                     val batches = repository.loadExtractedVaultBatches()
+                    val exportNote = batch.exportedToExternalUri?.let { " ও ফোল্ডারে ($it) সেভ হয়েছে" } ?: ""
                     _uiState.update {
                         it.copy(
                             isProcessing = false,
+                            extractionProgress = ExtractionProgressState(isExtracting = false, percentComplete = 100),
                             extractedBatches = batches,
                             recentUnlockedCount = it.recentUnlockedCount + 1,
                             selectedTab = AppTab.VAULT,
-                            statusBannerBn = "সফলভাবে আনলক ও আনজিপ সম্পন্ন হয়েছে! (${batch.files.size} টি ফাইল ভল্টে সংরক্ষিত)",
+                            statusBannerBn = "সফলভাবে আনলক ও আনজিপ সম্পন্ন হয়েছে! (${batch.files.size} টি ফাইল ভল্টে$exportNote)",
                             isErrorBanner = false
                         )
                     }
@@ -207,6 +267,7 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
                     _uiState.update {
                         it.copy(
                             isProcessing = false,
+                            extractionProgress = ExtractionProgressState(isExtracting = false),
                             statusBannerBn = err.message ?: "আনলক ব্যর্থ হয়েছে!",
                             isErrorBanner = true
                         )
@@ -299,9 +360,9 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
                             isScanning = false,
                             matchedPassword = matched,
                             elapsedTimeMs = totalElapsed,
-                            statusMessageBn = "পাসওয়ার্ড পাওয়া গেছে: \"$matched\""
+                            statusMessageBn = "পাসওয়ার্ড পাওয়া গেছে!"
                         ),
-                        statusBannerBn = "অভিনন্দন! পাসওয়ার্ড রিকভার হয়েছে: \"$matched\"। এখন ১-ক্লিকে আনলক করুন।",
+                        statusBannerBn = "পাসওয়ার্ড ম্যাচ করেছে! এখন ১-ক্লিকে ফাইল আনলক ও এক্সট্রাক্ট করুন।",
                         isErrorBanner = false
                     )
                 }
@@ -312,9 +373,9 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
                             isScanning = false,
                             matchedPassword = null,
                             elapsedTimeMs = totalElapsed,
-                            statusMessageBn = "এই মোডে পাসওয়ার্ড মেলেনি। নতুন হিন্ট বা অন্য মোড দিয়ে চেষ্টা করুন।"
+                            statusMessageBn = "এই তালিকায় পাসওয়ার্ড মেলেনি। নতুন হিন্ট বা কাস্টম শব্দ তালিকা দিয়ে চেষ্টা করুন।"
                         ),
-                        statusBannerBn = "স্ক্যান সম্পন্ন হয়েছে কিন্তু পাসওয়ার্ড মেলেনি। কাস্টম হিন্ট বা ৪-ডিজিট পিন মোড চেষ্টা করুন।",
+                        statusBannerBn = "স্ক্যান সম্পন্ন হয়েছে কিন্তু পাসওয়ার্ড মেলেনি। জটিল পাসওয়ার্ড উদ্ধারের জন্য সঠিক হিন্ট বা ওয়ার্ডলিস্ট প্রয়োজন।",
                         isErrorBanner = true
                     )
                 }
@@ -340,7 +401,6 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
         unlockAndExtractCurrentArchive()
     }
 
-    // Creator Tab Actions
     fun updateCreatorArchiveName(name: String) {
         _uiState.update { it.copy(creatorArchiveName = name) }
     }
@@ -435,7 +495,6 @@ class ZipUnlockerViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    // Vault & File Preview Actions
     fun refreshVaultBatches() {
         viewModelScope.launch {
             val batches = repository.loadExtractedVaultBatches()

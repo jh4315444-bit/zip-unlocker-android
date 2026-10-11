@@ -2,6 +2,7 @@ package com.example.data
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import com.example.model.CreatorDraftFile
 import com.example.model.EncryptionMethodLabel
@@ -62,6 +63,17 @@ class ZipEngineRepository(private val context: Context) {
             }
         }
         return name ?: uri.lastPathSegment
+    }
+
+    fun resolveTreeDirectoryLabel(treeUri: Uri): String {
+        val docId = try {
+            DocumentsContract.getTreeDocumentId(treeUri)
+        } catch (e: Exception) {
+            null
+        }
+        return docId?.substringAfterLast(':')?.ifBlank { "Device Storage" }
+            ?: treeUri.lastPathSegment
+            ?: "Selected Output Folder"
     }
 
     suspend fun inspectZipFile(file: File): ZipArchiveInfo = withContext(Dispatchers.IO) {
@@ -145,7 +157,8 @@ class ZipEngineRepository(private val context: Context) {
     }
 
     /**
-     * Verifies if a password can successfully read the first non-directory encrypted entry in the archive.
+     * Verifies if a candidate password can decrypt and pass CRC/MAC verification on the first
+     * non-directory entry in the archive. Passwords are never logged.
      */
     fun verifyPasswordFast(file: File, candidatePassword: String): Boolean {
         return try {
@@ -159,7 +172,7 @@ class ZipEngineRepository(private val context: Context) {
             val buffer = ByteArray(512)
             zipFile.getInputStream(targetHeader).use { stream ->
                 while (stream.read(buffer) != -1) {
-                    // Read entire stream to verify both header and CRC/MAC integrity
+                    // Read stream to verify both header and CRC/MAC integrity
                 }
             }
             true
@@ -168,10 +181,16 @@ class ZipEngineRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Unlocks and extracts selected entries with entry-by-entry progress reporting and optional
+     * export to a user-chosen Android SAF directory (OpenDocumentTree).
+     */
     suspend fun unlockAndExtractAll(
         archiveFile: File,
         password: String?,
-        selectedEntryNames: Set<String>? = null
+        selectedEntryNames: Set<String>? = null,
+        customOutputTreeUri: Uri? = null,
+        onProgress: (processed: Int, total: Int, currentEntry: String) -> Unit = { _, _, _ -> }
     ): Result<ExtractedVaultBatch> = withContext(Dispatchers.IO) {
         try {
             val zipFile = ZipFile(archiveFile)
@@ -188,15 +207,18 @@ class ZipEngineRepository(private val context: Context) {
             val baseName = archiveFile.nameWithoutExtension.ifBlank { "unlocked" }
             val destFolder = File(extractedVaultRoot, "${baseName}_$timeStamp").apply { mkdirs() }
 
-            if (selectedEntryNames.isNullOrEmpty()) {
-                zipFile.extractAll(destFolder.absolutePath)
+            val headersToExtract = if (selectedEntryNames.isNullOrEmpty()) {
+                zipFile.fileHeaders
             } else {
-                for (entryName in selectedEntryNames) {
-                    val header = zipFile.getFileHeader(entryName)
-                    if (header != null) {
-                        zipFile.extractFile(header, destFolder.absolutePath)
-                    }
-                }
+                zipFile.fileHeaders.filter { selectedEntryNames.contains(it.fileName) }
+            }
+
+            val total = headersToExtract.size.coerceAtLeast(1)
+            for ((index, header) in headersToExtract.withIndex()) {
+                coroutineContext.ensureActive()
+                onProgress(index, total, header.fileName)
+                zipFile.extractFile(header, destFolder.absolutePath)
+                onProgress(index + 1, total, header.fileName)
             }
 
             val extractedFiles = destFolder.walkTopDown().filter { it.isFile }.toList()
@@ -206,27 +228,69 @@ class ZipEngineRepository(private val context: Context) {
                 )
             }
 
+            // If user selected a custom output folder via SAF OpenDocumentTree, copy extracted files there as well
+            var exportedLabel: String? = null
+            if (customOutputTreeUri != null) {
+                exportedLabel = copyExtractedFilesToSafTree(customOutputTreeUri, baseName, extractedFiles)
+            }
+
             Result.success(
                 ExtractedVaultBatch(
                     id = "${baseName}_$timeStamp",
                     sourceArchiveName = archiveFile.name,
                     outputDir = destFolder,
-                    unlockedWithPassword = password?.takeIf { it.isNotBlank() },
                     timestampMillis = System.currentTimeMillis(),
-                    files = extractedFiles
+                    files = extractedFiles,
+                    exportedToExternalUri = exportedLabel
                 )
             )
         } catch (e: ZipException) {
             val msg = if (e.message?.contains("Wrong password", ignoreCase = true) == true ||
                 e.type == ZipException.Type.WRONG_PASSWORD
             ) {
-                "ভুল পাসওয়ার্ড! সঠিক পাসওয়ার্ড দিন অথবা 'পাসওয়ার্ড রিকভারি' ট্যাব থেকে অটো-স্ক্যান চালান।"
+                "ভুল পাসওয়ার্ড (Wrong Password)! সঠিক পাসওয়ার্ড দিন অথবা 'রিকভারি' ট্যাব থেকে পাসওয়ার্ড টেস্টিং চালান।"
             } else {
                 "জিপ আনলক ত্রুটি: ${e.localizedMessage ?: "অজানা সমস্যা"}"
             }
             Result.failure(IllegalArgumentException(msg, e))
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private fun copyExtractedFilesToSafTree(
+        treeUri: Uri,
+        subFolderName: String,
+        files: List<File>
+    ): String? {
+        return try {
+            val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
+            val parentDocumentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, treeDocId)
+            val subFolderUri = DocumentsContract.createDocument(
+                context.contentResolver,
+                parentDocumentUri,
+                DocumentsContract.Document.MIME_TYPE_DIR,
+                subFolderName
+            ) ?: parentDocumentUri
+
+            for (file in files) {
+                val fileUri = DocumentsContract.createDocument(
+                    context.contentResolver,
+                    subFolderUri,
+                    "application/octet-stream",
+                    file.name
+                )
+                if (fileUri != null) {
+                    context.contentResolver.openOutputStream(fileUri)?.use { out ->
+                        file.inputStream().use { input ->
+                            input.copyTo(out)
+                        }
+                    }
+                }
+            }
+            resolveTreeDirectoryLabel(treeUri) + "/$subFolderName"
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -259,7 +323,6 @@ class ZipEngineRepository(private val context: Context) {
     ): List<String> {
         val set = LinkedHashSet<String>()
 
-        // Always prioritize custom candidates and exact user hint first
         customCandidates.map { it.trim() }.filter { it.isNotEmpty() }.forEach { set.add(it) }
         val cleanHint = userHint.trim()
         if (cleanHint.isNotEmpty()) {
@@ -269,7 +332,6 @@ class ZipEngineRepository(private val context: Context) {
             set.add(cleanHint.replaceFirstChar { it.uppercase(Locale.ROOT) })
         }
 
-        // Common high-hit archive passwords (including Demo sample passwords)
         val commonArchivePasswords = listOf(
             "1234", "12345", "123456", "12345678", "123456789", "0000", "1111", "2222",
             "password", "admin", "123123", "qwerty", "abc123", "zip123", "unlock",
@@ -295,7 +357,6 @@ class ZipEngineRepository(private val context: Context) {
                 set.addAll(commonArchivePasswords)
             }
             RecoveryPresetMode.NUMERIC_PIN_4 -> {
-                // Prioritize common years and repeated pins first
                 for (year in 1980..2030) {
                     set.add(year.toString())
                 }
@@ -344,10 +405,6 @@ class ZipEngineRepository(private val context: Context) {
         }
     }
 
-    /**
-     * Generates ready-to-test real encrypted ZIP sample archives so the user can test
-     * unlocking, password recovery, and file inspection with 1 tap.
-     */
     suspend fun generateSampleEncryptedArchive(
         presetType: SampleArchiveType
     ): ZipArchiveInfo = withContext(Dispatchers.IO) {
@@ -359,7 +416,7 @@ class ZipEngineRepository(private val context: Context) {
 
         when (presetType) {
             SampleArchiveType.PIN_LOCKED_VAULT -> {
-                zipFileName = "Гоপন_ডকুমেন্ট_ভল্ট_PIN.zip".replace("Гоপন", "গোপন")
+                zipFileName = "গোপন_ডকুমেন্ট_ভল্ট_PIN.zip"
                 password = "1234"
                 encryptionMethod = EncryptionMethod.AES
             }
@@ -381,10 +438,10 @@ class ZipEngineRepository(private val context: Context) {
                 =========================================
                 ZIP UNLOCKER VAULT - গোপন ডকুমেন্ট
                 =========================================
-                অভিনন্দন! আপনি সফলভাবে পাসওয়ার্ড লকড জিপ ফাইলটি আনলক করেছেন।
+                অভিনন্দন! আপনি সফলভাবে জিপ ফাইলটি আনলক ও এক্সট্রাক্ট করেছেন।
                 
                 ফাইল স্ট্যাটাস: ডিক্রিপ্টেড ও ভেরিফাইড (CRC-32 Checked)
-                সিকিউরিটি প্রোটোকল: ${if (password != null) "Password Protected ($password)" else "Standard Archive"}
+                সিকিউরিটি প্রোটোকল: ${if (password != null) "Password Protected (${encryptionMethod.name})" else "Standard Archive"}
                 তারিখ: ${SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date())}
                 
                 এই ফাইলটি এখন আপনি সরাসরি অ্যাপের ভেতর পড়তে, কপি করতে কিংবা অন্য অ্যাপে শেয়ার করতে পারবেন।
@@ -482,7 +539,6 @@ class ZipEngineRepository(private val context: Context) {
             val validFiles = draftFiles.map { it.localFile }.filter { it.exists() }
             zipFile.addFiles(validFiles, params)
 
-            // Also copy to workspace so user can immediately inspect/test unlocking it
             val workspaceCopy = File(workSpaceDir, outZipFile.name)
             outZipFile.copyTo(workspaceCopy, overwrite = true)
 
@@ -534,7 +590,6 @@ class ZipEngineRepository(private val context: Context) {
                 id = folder.name,
                 sourceArchiveName = folder.name.substringBeforeLast("_"),
                 outputDir = folder,
-                unlockedWithPassword = null,
                 timestampMillis = folder.lastModified(),
                 files = files
             )

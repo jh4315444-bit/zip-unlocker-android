@@ -46,9 +46,17 @@ data class ExtractedVaultBatch(
     val id: String,
     val sourceArchiveName: String,
     val outputDir: File,
-    val unlockedWithPassword: String?,
     val timestampMillis: Long,
-    val files: List<File>
+    val files: List<File>,
+    val exportedToExternalUri: String? = null
+)
+
+data class ExtractionProgressState(
+    val isExtracting: Boolean = false,
+    val currentFileName: String = "",
+    val processedEntries: Int = 0,
+    val totalEntries: Int = 0,
+    val percentComplete: Int = 0
 )
 
 data class RecoveryScanProgress(

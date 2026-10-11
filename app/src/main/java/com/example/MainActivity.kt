@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -95,7 +94,6 @@ fun ZipUnlockerApp(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // BackHandler for secondary tabs so pressing Back returns to the primary Unlocker screen
     if (uiState.selectedTab != AppTab.UNLOCKER) {
         BackHandler {
             viewModel.selectTab(AppTab.UNLOCKER)
@@ -108,6 +106,15 @@ fun ZipUnlockerApp(
     ) { uri ->
         if (uri != null) {
             viewModel.onZipUriPicked(uri)
+        }
+    }
+
+    // SAF Launcher for choosing an output directory (OpenDocumentTree)
+    val outputFolderLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        if (treeUri != null) {
+            viewModel.onOutputFolderPicked(treeUri)
         }
     }
 
@@ -201,7 +208,6 @@ fun ZipUnlockerApp(
                             .fillMaxWidth()
                             .widthIn(max = 760.dp)
                     ) {
-                        // Feedback Status Banner
                         AnimatedVisibility(
                             visible = uiState.statusBannerBn != null,
                             enter = fadeIn(),
@@ -216,7 +222,6 @@ fun ZipUnlockerApp(
                             }
                         }
 
-                        // Active Screen Content
                         ZipUnlockerTabContent(
                             uiState = uiState,
                             onPickZip = {
@@ -228,6 +233,9 @@ fun ZipUnlockerApp(
                                         "*/*"
                                     )
                                 )
+                            },
+                            onPickOutputFolder = {
+                                outputFolderLauncher.launch(null)
                             },
                             onPickFilesForCreator = {
                                 creatorFilesLauncher.launch(arrayOf("*/*"))
@@ -246,6 +254,7 @@ fun ZipUnlockerApp(
 private fun ZipUnlockerTabContent(
     uiState: ZipUnlockerUiState,
     onPickZip: () -> Unit,
+    onPickOutputFolder: () -> Unit,
     onPickFilesForCreator: () -> Unit,
     viewModel: ZipUnlockerViewModel,
     modifier: Modifier = Modifier
@@ -255,6 +264,8 @@ private fun ZipUnlockerTabContent(
             UnlockerTabScreen(
                 uiState = uiState,
                 onPickZipClick = onPickZip,
+                onPickOutputFolderClick = onPickOutputFolder,
+                onResetOutputFolderClick = viewModel::resetOutputFolderToDefault,
                 onLoadSampleArchive = { type -> viewModel.loadSampleArchive(type) },
                 onPasswordChange = viewModel::updatePasswordInput,
                 onTogglePasswordVisibility = viewModel::togglePasswordVisibility,
